@@ -23,6 +23,7 @@ st.set_page_config(
 st.title("AI-Based Multi-Vehicle EV Route Planning System")
 
 st.write("AI-powered electric vehicle route optimization considering:")
+
 st.write("• Exact Google Maps road distance")
 st.write("• Exact Google Maps travel time")
 st.write("• Traffic conditions")
@@ -203,8 +204,22 @@ if st.button("Find Optimal EV Route"):
         data = response.json()
 
         # ---------------------------------------------------
-        # VALIDATION
+        # SAFE VALIDATION
         # ---------------------------------------------------
+
+        if (
+            'rows' not in data or
+            len(data['rows']) == 0 or
+            len(data['rows'][0]['elements']) == 0
+        ):
+
+            st.error(
+                "Google Maps API did not return route data."
+            )
+
+            st.write(data)
+
+            st.stop()
 
         element = data['rows'][0]['elements'][0]
 
@@ -212,8 +227,10 @@ if st.button("Find Optimal EV Route"):
 
             st.error(
                 "Unable to calculate route. "
-                "Please enter valid city names."
+                "Please enter valid locations."
             )
+
+            st.write(data)
 
             st.stop()
 
