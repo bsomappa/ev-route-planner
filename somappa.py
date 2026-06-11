@@ -1,5 +1,4 @@
 import streamlit as st
-from geopy.geocoders import Nominatim
 import openrouteservice
 
 # ---------------------------------------------------
@@ -103,14 +102,14 @@ with col1:
 
     source = st.text_input(
         "Start Location",
-        placeholder="Enter source city"
+        placeholder="Enter source city, state, country"
     )
 
 with col2:
 
     destination = st.text_input(
         "Destination Location",
-        placeholder="Enter destination city"
+        placeholder="Enter destination city, state, country"
     )
 
 # ---------------------------------------------------
@@ -179,59 +178,57 @@ if st.button("Find Optimal EV Route"):
     try:
 
         # ---------------------------------------------------
-        # GEOLOCATION
+        # GEOCODING USING OPENROUTESERVICE
         # ---------------------------------------------------
 
-        geolocator = Nominatim(
-            user_agent="ev_route_planner"
+        source_location = client.pelias_search(
+            text=source
         )
 
-        source_location = geolocator.geocode(
-            source
+        destination_location = client.pelias_search(
+            text=destination
         )
-
-        destination_location = geolocator.geocode(
-            destination
-        )
-
-        # ---------------------------------------------------
-        # VALIDATION
-        # ---------------------------------------------------
-
-        if source_location is None or destination_location is None:
-
-            st.error(
-                "Invalid source or destination location"
-            )
-
-            st.stop()
 
         # ---------------------------------------------------
         # COORDINATES
         # ---------------------------------------------------
 
+        source_coords = (
+            source_location['features'][0]
+            ['geometry']['coordinates']
+        )
+
+        destination_coords = (
+            destination_location['features'][0]
+            ['geometry']['coordinates']
+        )
+
         coordinates = [
-
-            [
-                source_location.longitude,
-                source_location.latitude
-            ],
-
-            [
-                destination_location.longitude,
-                destination_location.latitude
-            ]
+            source_coords,
+            destination_coords
         ]
 
         # ---------------------------------------------------
         # ROUTE API
         # ---------------------------------------------------
 
-        route = client.directions(
-            coordinates=coordinates,
-            profile='driving-car',
-            format='geojson'
-        )
+        try:
+
+            route = client.directions(
+                coordinates=coordinates,
+                profile='driving-car',
+                format='geojson'
+            )
+
+        except:
+
+            st.error(
+                "Unable to find valid road route. "
+                "Please enter proper city names "
+                "with state and country."
+            )
+
+            st.stop()
 
         # ---------------------------------------------------
         # EXACT ROAD DISTANCE
