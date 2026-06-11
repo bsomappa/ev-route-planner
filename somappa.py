@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 
 # ---------------------------------------------------
-# GOOGLE MAPS API KEY
+# GOOGLE ROUTES API KEY
 # ---------------------------------------------------
 
 GOOGLE_API_KEY = "AIzaSyB331KRd5xMiJsb_orRLJZ143VRO0hPpYc"
@@ -127,7 +127,7 @@ total_battery = vehicle_data[vehicle]["battery"]
 consumption_factor = vehicle_data[vehicle]["consumption"]
 
 # ---------------------------------------------------
-# VEHICLE DETAILS
+# DISPLAY VEHICLE DETAILS
 # ---------------------------------------------------
 
 col3, col4 = st.columns(2)
@@ -175,62 +175,113 @@ if st.button("Find Optimal EV Route"):
     try:
 
         # ---------------------------------------------------
-        # GOOGLE DISTANCE MATRIX API
+        # GOOGLE ROUTES API URL
         # ---------------------------------------------------
 
         url = (
-            "https://maps.googleapis.com/maps/api/"
-            "distancematrix/json"
+            "https://routes.googleapis.com/"
+            "distanceMatrix/v2:computeRouteMatrix"
         )
 
-        params = {
+        # ---------------------------------------------------
+        # HEADERS
+        # ---------------------------------------------------
 
-            "origins": source,
+        headers = {
 
-            "destinations": destination,
+            "Content-Type": "application/json",
 
-            "departure_time": "now",
+            "X-Goog-Api-Key": GOOGLE_API_KEY,
 
-            "traffic_model": "best_guess",
-
-            "key": GOOGLE_API_KEY
+            "X-Goog-FieldMask":
+            (
+                "originIndex,"
+                "destinationIndex,"
+                "distanceMeters,"
+                "duration,"
+                "status"
+            )
         }
 
-        response = requests.get(
+        # ---------------------------------------------------
+        # REQUEST BODY
+        # ---------------------------------------------------
+
+        body = {
+
+            "origins": [
+
+                {
+                    "waypoint": {
+
+                        "address": source
+                    }
+                }
+            ],
+
+            "destinations": [
+
+                {
+                    "waypoint": {
+
+                        "address": destination
+                    }
+                }
+            ],
+
+            "travelMode": "DRIVE"
+        }
+
+        # ---------------------------------------------------
+        # API REQUEST
+        # ---------------------------------------------------
+
+        response = requests.post(
             url,
-            params=params
+            headers=headers,
+            json=body
         )
 
         data = response.json()
 
         # ---------------------------------------------------
-        # SAFE VALIDATION
+        # VALIDATION
         # ---------------------------------------------------
 
-        if (
-            'rows' not in data or
-            len(data['rows']) == 0 or
-            len(data['rows'][0]['elements']) == 0
-        ):
+        if not isinstance(data, list):
 
             st.error(
-                "Google Maps API did not return route data."
+                "Google Routes API error."
             )
 
             st.write(data)
 
             st.stop()
 
-        element = data['rows'][0]['elements'][0]
-
-        if element['status'] != "OK":
+        if len(data) == 0:
 
             st.error(
-                "Unable to calculate route. "
-                "Please enter valid locations."
+                "No route data found."
             )
 
-            st.write(data)
+            st.stop()
+
+        element = data[0]
+
+        # ---------------------------------------------------
+        # CHECK STATUS
+        # ---------------------------------------------------
+
+        if (
+            'status' in element and
+            element['status'].get('code', 0) != 0
+        ):
+
+            st.error(
+                "Unable to calculate route."
+            )
+
+            st.write(element)
 
             st.stop()
 
@@ -239,16 +290,20 @@ if st.button("Find Optimal EV Route"):
         # ---------------------------------------------------
 
         distance = (
-            element['distance']['value']
+            element['distanceMeters']
         ) / 1000
 
         # ---------------------------------------------------
         # EXACT GOOGLE MAPS TIME
         # ---------------------------------------------------
 
-        duration = (
-            element['duration_in_traffic']['value']
-        ) / 60
+        duration_seconds = int(
+
+            element['duration']
+            .replace("s", "")
+        )
+
+        duration = duration_seconds / 60
 
         # ---------------------------------------------------
         # TRAFFIC FACTOR
@@ -279,6 +334,7 @@ if st.button("Find Optimal EV Route"):
         # ---------------------------------------------------
 
         energy_required = (
+
             distance *
             consumption_factor *
             traffic_factor
@@ -289,11 +345,13 @@ if st.button("Find Optimal EV Route"):
         # ---------------------------------------------------
 
         remaining_battery = (
+
             available_battery -
             energy_required
         )
 
         battery_usage = (
+
             energy_required /
             available_battery
         ) * 100
