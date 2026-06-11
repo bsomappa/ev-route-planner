@@ -1,11 +1,15 @@
 import streamlit as st
-import requests
+import openrouteservice
 
 # ---------------------------------------------------
-# GOOGLE ROUTES API KEY
+# OPENROUTESERVICE API
 # ---------------------------------------------------
 
-GOOGLE_API_KEY = "AIzaSyCRDnlwPNQgRLZuMbOdx8BzRuu5QWJePJo"
+API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjkxOWRmM2U4MTk5YzQ3NzU5NzFhYzU0OWNkOTFkOGQ3IiwiaCI6Im11cm11cjY0In0="
+
+client = openrouteservice.Client(
+    key=API_KEY
+)
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -23,9 +27,8 @@ st.set_page_config(
 st.title("AI-Based Multi-Vehicle EV Route Planning System")
 
 st.write("AI-powered electric vehicle route optimization considering:")
-
-st.write("• Exact Google Maps road distance")
-st.write("• Exact Google Maps travel time")
+st.write("• Real road distance")
+st.write("• Real travel time")
 st.write("• Traffic conditions")
 st.write("• Battery constraints")
 st.write("• Energy consumption prediction")
@@ -99,14 +102,14 @@ with col1:
 
     source = st.text_input(
         "Start Location",
-        placeholder="Enter source city"
+        placeholder="Enter source city, state, country"
     )
 
 with col2:
 
     destination = st.text_input(
         "Destination Location",
-        placeholder="Enter destination city"
+        placeholder="Enter destination city, state, country"
     )
 
 # ---------------------------------------------------
@@ -158,7 +161,7 @@ available_battery = st.slider(
 )
 
 # ---------------------------------------------------
-# TRAFFIC CONDITION
+# TRAFFIC CONDITIONS
 # ---------------------------------------------------
 
 traffic = st.selectbox(
@@ -175,178 +178,97 @@ if st.button("Find Optimal EV Route"):
     try:
 
         # ---------------------------------------------------
-        # GOOGLE ROUTES API URL
+        # GEOCODING USING OPENROUTESERVICE
         # ---------------------------------------------------
 
-        url = (
-            "https://routes.googleapis.com/"
-            "distanceMatrix/v2:computeRouteMatrix"
+        source_location = client.pelias_search(
+            text=source
+        )
+
+        destination_location = client.pelias_search(
+            text=destination
         )
 
         # ---------------------------------------------------
-        # HEADERS
+        # COORDINATES
         # ---------------------------------------------------
 
-        headers = {
-
-            "Content-Type": "application/json",
-
-            "X-Goog-Api-Key": GOOGLE_API_KEY,
-
-            "X-Goog-FieldMask":
-            (
-                "originIndex,"
-                "destinationIndex,"
-                "distanceMeters,"
-                "duration,"
-                "status"
-            )
-        }
-
-        # ---------------------------------------------------
-        # REQUEST BODY
-        # ---------------------------------------------------
-
-        body = {
-
-            "origins": [
-
-                {
-                    "waypoint": {
-                        "address": source
-                    }
-                }
-            ],
-
-            "destinations": [
-
-                {
-                    "waypoint": {
-                        "address": destination
-                    }
-                }
-            ],
-
-            "travelMode": "DRIVE"
-        }
-
-        # ---------------------------------------------------
-        # API REQUEST
-        # ---------------------------------------------------
-
-        response = requests.post(
-            url,
-            headers=headers,
-            json=body
+        source_coords = (
+            source_location['features'][0]
+            ['geometry']['coordinates']
         )
 
-        data = response.json()
+        destination_coords = (
+            destination_location['features'][0]
+            ['geometry']['coordinates']
+        )
+
+        coordinates = [
+            source_coords,
+            destination_coords
+        ]
 
         # ---------------------------------------------------
-        # DEBUG OUTPUT
+        # ROUTE API
         # ---------------------------------------------------
 
-        st.write("API Response:", data)
+        try:
 
-        # ---------------------------------------------------
-        # VALIDATION
-        # ---------------------------------------------------
+            route = client.directions(
+                coordinates=coordinates,
+                profile='driving-car',
+                format='geojson'
+            )
 
-        if not isinstance(data, list):
+        except:
 
             st.error(
-                "Google Routes API error."
+                "Unable to find valid road route. "
+                "Please enter proper city names "
+                "with state and country."
             )
 
             st.stop()
 
-        if len(data) == 0:
-
-            st.error(
-                "No route data found."
-            )
-
-            st.stop()
-
-        element = data[0]
-
         # ---------------------------------------------------
-        # CHECK STATUS
+        # EXACT ROAD DISTANCE
         # ---------------------------------------------------
-
-        if (
-            'status' in element and
-            isinstance(element['status'], dict)
-        ):
-
-            if element['status'].get('code', 0) != 0:
-
-                st.error(
-                    "Unable to calculate route."
-                )
-
-                st.write(element)
-
-                st.stop()
-
-        # ---------------------------------------------------
-        # SAFE DISTANCE EXTRACTION
-        # ---------------------------------------------------
-
-        if 'distanceMeters' not in element:
-
-            st.error(
-                "Distance data not found."
-            )
-
-            st.write(element)
-
-            st.stop()
 
         distance = (
-            element['distanceMeters']
+            route['features'][0]
+            ['properties']['summary']
+            ['distance']
         ) / 1000
 
         # ---------------------------------------------------
-        # SAFE DURATION EXTRACTION
+        # EXACT TRAVEL TIME
         # ---------------------------------------------------
 
-        if 'duration' not in element:
-
-            st.error(
-                "Duration data not found."
-            )
-
-            st.write(element)
-
-            st.stop()
-
-        duration_text = element['duration']
-
-        duration_seconds = int(
-            duration_text.replace("s", "")
-        )
-
-        duration = duration_seconds / 60
+        duration = (
+            route['features'][0]
+            ['properties']['summary']
+            ['duration']
+        ) / 60
 
         # ---------------------------------------------------
         # TRAFFIC FACTOR
         # ---------------------------------------------------
 
-        if traffic == "Low":
 
-            traffic_factor = 1.0
+if traffic == "Low":
 
-        elif traffic == "Medium":
+    traffic_factor = 1.25
 
-            traffic_factor = 1.1
+elif traffic == "Medium":
 
-        else:
+    traffic_factor = 1.45
 
-            traffic_factor = 1.25
+else:
+
+    traffic_factor = 1.75
 
         # ---------------------------------------------------
-        # FINAL TRAVEL TIME
+        # TRAFFIC ADJUSTED TIME
         # ---------------------------------------------------
 
         adjusted_duration = (
@@ -358,7 +280,6 @@ if st.button("Find Optimal EV Route"):
         # ---------------------------------------------------
 
         energy_required = (
-
             distance *
             consumption_factor *
             traffic_factor
@@ -369,13 +290,11 @@ if st.button("Find Optimal EV Route"):
         # ---------------------------------------------------
 
         remaining_battery = (
-
             available_battery -
             energy_required
         )
 
         battery_usage = (
-
             energy_required /
             available_battery
         ) * 100
@@ -451,7 +370,7 @@ if st.button("Find Optimal EV Route"):
             )
 
         # ---------------------------------------------------
-        # BATTERY UTILIZATION
+        # BATTERY BAR
         # ---------------------------------------------------
 
         st.subheader("Battery Utilization")
@@ -486,7 +405,7 @@ if st.button("Find Optimal EV Route"):
             )
 
         # ---------------------------------------------------
-        # GOOGLE MAPS NAVIGATION
+        # GOOGLE MAPS
         # ---------------------------------------------------
 
         st.header("Google Maps Navigation")
