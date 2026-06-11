@@ -5,7 +5,7 @@ import requests
 # GOOGLE ROUTES API KEY
 # ---------------------------------------------------
 
-GOOGLE_API_KEY = "AIzaSyB331KRd5xMiJsb_orRLJZ143VRO0hPpYc"
+GOOGLE_API_KEY = "AIzaSyD20hVzqmLEZhpXXlEWGomvBwfg4UL630M"
 
 # ---------------------------------------------------
 # PAGE CONFIG
