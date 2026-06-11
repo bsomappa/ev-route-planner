@@ -213,7 +213,6 @@ if st.button("Find Optimal EV Route"):
 
                 {
                     "waypoint": {
-
                         "address": source
                     }
                 }
@@ -223,7 +222,6 @@ if st.button("Find Optimal EV Route"):
 
                 {
                     "waypoint": {
-
                         "address": destination
                     }
                 }
@@ -245,6 +243,12 @@ if st.button("Find Optimal EV Route"):
         data = response.json()
 
         # ---------------------------------------------------
+        # DEBUG OUTPUT
+        # ---------------------------------------------------
+
+        st.write("API Response:", data)
+
+        # ---------------------------------------------------
         # VALIDATION
         # ---------------------------------------------------
 
@@ -253,8 +257,6 @@ if st.button("Find Optimal EV Route"):
             st.error(
                 "Google Routes API error."
             )
-
-            st.write(data)
 
             st.stop()
 
@@ -274,33 +276,55 @@ if st.button("Find Optimal EV Route"):
 
         if (
             'status' in element and
-            element['status'].get('code', 0) != 0
+            isinstance(element['status'], dict)
         ):
 
+            if element['status'].get('code', 0) != 0:
+
+                st.error(
+                    "Unable to calculate route."
+                )
+
+                st.write(element)
+
+                st.stop()
+
+        # ---------------------------------------------------
+        # SAFE DISTANCE EXTRACTION
+        # ---------------------------------------------------
+
+        if 'distanceMeters' not in element:
+
             st.error(
-                "Unable to calculate route."
+                "Distance data not found."
             )
 
             st.write(element)
 
             st.stop()
 
-        # ---------------------------------------------------
-        # EXACT GOOGLE MAPS DISTANCE
-        # ---------------------------------------------------
-
         distance = (
             element['distanceMeters']
         ) / 1000
 
         # ---------------------------------------------------
-        # EXACT GOOGLE MAPS TIME
+        # SAFE DURATION EXTRACTION
         # ---------------------------------------------------
 
-        duration_seconds = int(
+        if 'duration' not in element:
 
-            element['duration']
-            .replace("s", "")
+            st.error(
+                "Duration data not found."
+            )
+
+            st.write(element)
+
+            st.stop()
+
+        duration_text = element['duration']
+
+        duration_seconds = int(
+            duration_text.replace("s", "")
         )
 
         duration = duration_seconds / 60
