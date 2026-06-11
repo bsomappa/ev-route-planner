@@ -1,6 +1,5 @@
 streamlit
-geopy
+requests
 pandas
 numpy
 matplotlib
-openrouteservice
