@@ -254,18 +254,17 @@ if st.button("Find Optimal EV Route"):
         # TRAFFIC FACTOR
         # ---------------------------------------------------
 
+        if traffic == "Low":
 
-if traffic == "Low":
+             traffic_factor = 1.25
 
-    traffic_factor = 1.25
+        elif traffic == "Medium":
 
-elif traffic == "Medium":
+           traffic_factor = 1.45
 
-    traffic_factor = 1.45
+        else:
 
-else:
-
-    traffic_factor = 1.75
+                traffic_factor = 1.75
 
         # ---------------------------------------------------
         # TRAFFIC ADJUSTED TIME
