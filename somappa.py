@@ -1,15 +1,11 @@
 import streamlit as st
-import openrouteservice
+import requests
 
 # ---------------------------------------------------
-# OPENROUTESERVICE API
+# GOOGLE MAPS API KEY
 # ---------------------------------------------------
 
-API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjkxOWRmM2U4MTk5YzQ3NzU5NzFhYzU0OWNkOTFkOGQ3IiwiaCI6Im11cm11cjY0In0="
-
-client = openrouteservice.Client(
-    key=API_KEY
-)
+GOOGLE_API_KEY = "AIzaSyB331KRd5xMiJsb_orRLJZ143VRO0hPpYc"
 
 # ---------------------------------------------------
 # PAGE CONFIG
@@ -27,8 +23,8 @@ st.set_page_config(
 st.title("AI-Based Multi-Vehicle EV Route Planning System")
 
 st.write("AI-powered electric vehicle route optimization considering:")
-st.write("• Real road distance")
-st.write("• Real travel time")
+st.write("• Exact Google Maps road distance")
+st.write("• Exact Google Maps travel time")
 st.write("• Traffic conditions")
 st.write("• Battery constraints")
 st.write("• Energy consumption prediction")
@@ -102,14 +98,14 @@ with col1:
 
     source = st.text_input(
         "Start Location",
-        placeholder="Enter source city, state, country"
+        placeholder="Enter source city"
     )
 
 with col2:
 
     destination = st.text_input(
         "Destination Location",
-        placeholder="Enter destination city, state, country"
+        placeholder="Enter destination city"
     )
 
 # ---------------------------------------------------
@@ -130,7 +126,7 @@ total_battery = vehicle_data[vehicle]["battery"]
 consumption_factor = vehicle_data[vehicle]["consumption"]
 
 # ---------------------------------------------------
-# DISPLAY VEHICLE DETAILS
+# VEHICLE DETAILS
 # ---------------------------------------------------
 
 col3, col4 = st.columns(2)
@@ -161,7 +157,7 @@ available_battery = st.slider(
 )
 
 # ---------------------------------------------------
-# TRAFFIC CONDITIONS
+# TRAFFIC CONDITION
 # ---------------------------------------------------
 
 traffic = st.selectbox(
@@ -178,76 +174,63 @@ if st.button("Find Optimal EV Route"):
     try:
 
         # ---------------------------------------------------
-        # GEOCODING USING OPENROUTESERVICE
+        # GOOGLE DISTANCE MATRIX API
         # ---------------------------------------------------
 
-        source_location = client.pelias_search(
-            text=source
+        url = (
+            "https://maps.googleapis.com/maps/api/"
+            "distancematrix/json"
         )
 
-        destination_location = client.pelias_search(
-            text=destination
+        params = {
+
+            "origins": source,
+
+            "destinations": destination,
+
+            "departure_time": "now",
+
+            "traffic_model": "best_guess",
+
+            "key": GOOGLE_API_KEY
+        }
+
+        response = requests.get(
+            url,
+            params=params
         )
 
-        # ---------------------------------------------------
-        # COORDINATES
-        # ---------------------------------------------------
-
-        source_coords = (
-            source_location['features'][0]
-            ['geometry']['coordinates']
-        )
-
-        destination_coords = (
-            destination_location['features'][0]
-            ['geometry']['coordinates']
-        )
-
-        coordinates = [
-            source_coords,
-            destination_coords
-        ]
+        data = response.json()
 
         # ---------------------------------------------------
-        # ROUTE API
+        # VALIDATION
         # ---------------------------------------------------
 
-        try:
+        element = data['rows'][0]['elements'][0]
 
-            route = client.directions(
-                coordinates=coordinates,
-                profile='driving-car',
-                format='geojson'
-            )
-
-        except:
+        if element['status'] != "OK":
 
             st.error(
-                "Unable to find valid road route. "
-                "Please enter proper city names "
-                "with state and country."
+                "Unable to calculate route. "
+                "Please enter valid city names."
             )
 
             st.stop()
 
         # ---------------------------------------------------
-        # EXACT ROAD DISTANCE
+        # EXACT GOOGLE MAPS DISTANCE
         # ---------------------------------------------------
 
         distance = (
-            route['features'][0]
-            ['properties']['summary']
-            ['distance']
+            element['distance']['value']
         ) / 1000
 
         # ---------------------------------------------------
-        # EXACT TRAVEL TIME
+        # EXACT GOOGLE MAPS TIME
         # ---------------------------------------------------
 
         duration = (
-            route['features'][0]
-            ['properties']['summary']
-            ['duration']
+            element['duration_in_traffic']['value']
         ) / 60
 
         # ---------------------------------------------------
@@ -260,14 +243,14 @@ if st.button("Find Optimal EV Route"):
 
         elif traffic == "Medium":
 
-            traffic_factor = 1.2
+            traffic_factor = 1.1
 
         else:
 
-            traffic_factor = 1.5
+            traffic_factor = 1.25
 
         # ---------------------------------------------------
-        # TRAFFIC ADJUSTED TIME
+        # FINAL TRAVEL TIME
         # ---------------------------------------------------
 
         adjusted_duration = (
@@ -369,7 +352,7 @@ if st.button("Find Optimal EV Route"):
             )
 
         # ---------------------------------------------------
-        # BATTERY BAR
+        # BATTERY UTILIZATION
         # ---------------------------------------------------
 
         st.subheader("Battery Utilization")
@@ -404,7 +387,7 @@ if st.button("Find Optimal EV Route"):
             )
 
         # ---------------------------------------------------
-        # GOOGLE MAPS
+        # GOOGLE MAPS NAVIGATION
         # ---------------------------------------------------
 
         st.header("Google Maps Navigation")
